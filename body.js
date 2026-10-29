@@ -92,9 +92,9 @@ export function createBody(host){
     model.scale.y=profile.height/175;model.scale.x=clampScale(profile.weight,profile.height)*(0.94+profile.muscle/100*.12);
     ghost.scale.copy(model.scale);
     hips.forEach(h=>{const baseline=ghost.children[model.children.indexOf(h)];baseline.scale.x=.24+adiposity*.15;});
-    thighs.forEach(t=>{
+    thighs.forEach((t,index)=>{
       const baseline=ghost.children[model.children.indexOf(t)],attr=baseline.geometry.attributes.position,base=t.userData.base;
-      const center=Math.sign(t.geometry.attributes.position.array[0])*.29,width=1+adiposity*.3;
+      const center=(index===0?-1:1)*.29,width=1+adiposity*.3;
       for(let i=0;i<attr.count;i++){attr.array[i*3]=center+(base[i*3]-center)*width;attr.array[i*3+2]=base[i*3+2]*width;}
       attr.needsUpdate=true;baseline.geometry.computeVertexNormals();
     });

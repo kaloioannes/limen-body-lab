@@ -59,7 +59,7 @@ export function parseSave(raw){
   return d;
 }
 export function forkScenario(source,month){
-  const m=clamp(month,0,60), s=structuredClone(source); s.id=uid();s.name=source.name+' · 分支';s.lockedUntil=m;
+  const m=clamp(month,0,60), s=structuredClone(source); s.id=uid();s.name=source.name.slice(0,54)+' · 分支';s.lockedUntil=m;
   // Keep original events and dose phase intact. Editing an ongoing event later
   // requires a linked continuation with the same original phase anchor.
   s.events=s.events.map(e=>({...e,id:uid(),phase:e.phase??e.start}));

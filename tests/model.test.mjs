@@ -10,6 +10,7 @@ test('相同种子、档案与事件可完全重现',()=>{const s=scenario();ass
 test('改变响应种子不会改变药物输入暴露',()=>{const a=scenario(),b=structuredClone(a);b.profile.seed=444;const r=simulate(a),q=simulate(b);assert.equal(at(r,24).exposure,at(q,24).exposure);assert.notEqual(at(r,24).breast,at(q,24).breast);});
 test('未来干预不能改变此前历史',()=>{const a=scenario(),b=structuredClone(a);b.events.push(event('ev',20,60));assert.deepEqual(simulate(a).samples.slice(0,601),simulate(b).samples.slice(0,601));});
 test('直接分叉保留完整轨迹和独立档案',()=>{const s=scenario(),f=forkScenario(s,12);assert.equal(f.lockedUntil,12);assert.deepEqual(simulate(s).samples,simulate(f).samples);f.profile.name='独立';assert.notEqual(s.profile.name,f.profile.name);});
+test('长名称的分叉仍是合法存档，零月存档合法且异常时间被拒绝',()=>{const s=scenario();s.name='长'.repeat(60);const f=forkScenario(s,12);assert.ok(f.name.length<=60);validateScenario(f);assert.equal(parseSave(JSON.stringify({schema:1,model:MODEL_VERSION,month:0,scenarios:[s]})).month,0);assert.throws(()=>parseSave(JSON.stringify({schema:1,model:MODEL_VERSION,month:'invalid',scenarios:[s]})));});
 test('分叉点拆分注射事件时保持原给药相位及停药残留',()=>{
  const s=empty();s.events=[event('ev',0,60)];const f=forkScenario(s,12.1),old=f.events[0];
  const continuation={...old,id:'continuation',start:12.1,phase:0};old.end=12.1;f.events.push(continuation);
