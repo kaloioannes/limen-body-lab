@@ -30,6 +30,18 @@ export function createBody(host){
     const mesh=new THREE.Mesh(new THREE.CylinderGeometry(r2,r1,delta.length(),24,6),material);
     mesh.position.copy(a.add(b).multiplyScalar(.5));mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),delta.normalize());parent.add(mesh);return mesh;
   }
+  function organicLimb(parent,points){
+    const centers=new THREE.CatmullRomCurve3(points.map(p=>new THREE.Vector3(p[0],p[1],p[2])));
+    const radii=new THREE.CatmullRomCurve3(points.map(p=>new THREE.Vector3(p[3],p[4],0)));
+    const pos=[],idx=[],N=60,S=32;
+    for(let j=0;j<=N;j++){
+      const c=centers.getPoint(j/N),r=radii.getPoint(j/N);
+      for(let i=0;i<S;i++){const a=i/S*Math.PI*2;pos.push(c.x+Math.cos(a)*r.x,c.y,c.z+Math.sin(a)*r.y);}
+    }
+    for(let j=0;j<N;j++)for(let i=0;i<S;i++){const a=j*S+i,b=j*S+(i+1)%S;idx.push(a,b,a+S,b,b+S,a+S);}
+    const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));geometry.setIndex(idx);geometry.computeVertexNormals();
+    const mesh=new THREE.Mesh(geometry,material);mesh.userData.base=new Float32Array(pos);parent.add(mesh);return mesh;
+  }
   const torsoGeom=new THREE.BufferGeometry();const segments=48;
   const rings=[[2.84,.29,.24],[3.03,.43,.30],[3.28,.48,.30],[3.52,.43,.27],[3.77,.37,.24],[4,.40,.245],[4.25,.49,.27],[4.50,.56,.29],[4.73,.61,.28],[4.91,.59,.24],[5.02,.39,.19]];
   const vertices=new Float32Array(rings.length*segments*3),indices=[];
@@ -48,20 +60,13 @@ export function createBody(host){
   const breasts=[],hips=[],thighs=[],arms=[];
   for(const sign of [-1,1]){
     breasts.push(addEllipsoid(model,sign*.245,4.48,.24,.10,.10,.03));
-    hips.push(addEllipsoid(model,sign*.33,3.14,-.035,.24,.38,.27));
-    tube(model,[sign*.26,2.97,0],[sign*.29,1.68,.02],.25,.17);
-    thighs.push(addEllipsoid(model,sign*.275,2.35,.015,.245,.76,.23));
-    addEllipsoid(model,sign*.29,1.65,.03,.17,.19,.17);
-    tube(model,[sign*.29,1.68,.01],[sign*.30,.38,0],.16,.095);
-    addEllipsoid(model,sign*.29,1.12,.015,.16,.47,.16);
+    hips.push(addEllipsoid(model,sign*.26,3.14,-.025,.24,.28,.26));
+    thighs.push(organicLimb(model,[[sign*.26,2.98,0,.23,.235],[sign*.28,2.72,.01,.235,.235],[sign*.29,2.32,.01,.21,.215],[sign*.29,1.94,.02,.165,.17],[sign*.29,1.64,.02,.14,.145],[sign*.29,1.42,.01,.145,.15],[sign*.29,1.16,0,.155,.16],[sign*.30,.83,0,.12,.13],[sign*.30,.48,0,.085,.09],[sign*.30,.27,.01,.08,.08]]));
     addEllipsoid(model,sign*.3,.19,.15,.115,.14,.27);
-    addEllipsoid(model,sign*.61,4.77,0,.21,.25,.23);
-    arms.push(tube(model,[sign*.65,4.73,0],[sign*.88,3.88,.02],.17,.12));
-    addEllipsoid(model,sign*.87,3.89,.02,.12,.13,.12);
-    tube(model,[sign*.88,3.88,.02],[sign*1.02,3.12,.07],.125,.075);
+    arms.push(organicLimb(model,[[sign*.60,4.89,0,.16,.19],[sign*.66,4.71,0,.18,.19],[sign*.73,4.43,0,.155,.165],[sign*.81,4.10,.01,.12,.13],[sign*.87,3.88,.02,.10,.105],[sign*.92,3.65,.035,.11,.11],[sign*.98,3.32,.06,.08,.085],[sign*1.02,3.12,.07,.067,.07]]));
     addEllipsoid(model,sign*1.04,2.97,.07,.092,.20,.06);
   }
-  const ghost=model.clone();ghost.traverse(o=>{if(o.isMesh){o.material=ghostMat;if(o.geometry===torsoGeom)o.geometry=torsoGeom.clone();}});ghost.visible=false;scene.add(ghost);
+  const ghost=model.clone();ghost.traverse(o=>{if(o.isMesh){o.material=ghostMat;o.geometry=o.geometry.clone();}});ghost.visible=false;scene.add(ghost);
   const disc=new THREE.Mesh(new THREE.CircleGeometry(1.65,80),new THREE.MeshBasicMaterial({color:0x42655e,transparent:true,opacity:.12}));disc.rotation.x=-Math.PI/2;disc.position.y=.015;scene.add(disc);
   for(const r of [1.25,1.65,2.05]){const ring=new THREE.Mesh(new THREE.RingGeometry(r,r+.007,100),new THREE.MeshBasicMaterial({color:0x6d9b91,transparent:true,opacity:.3,side:THREE.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.y=.02;scene.add(ring);}
   let yaw=0,targetYaw=0,zoom=1,dragging=false,lastX=0,frame=0,disposed=false,needsRender=true;
@@ -76,11 +81,23 @@ export function createBody(host){
     }
     torsoGeom.attributes.position.needsUpdate=true;torsoGeom.computeVertexNormals();
     breasts.forEach(b=>b.scale.set(.10+v.breast*.16,.10+v.breast*.13,.03+v.breast*.22));
-    hips.forEach(h=>h.scale.x=.24+v.fat*.07+adiposity*.2);
-    thighs.forEach(t=>{t.scale.x=.245+v.fat*.025-v.muscle*.015+adiposity*.1;});
+    hips.forEach(h=>h.scale.x=.24+v.fat*.05+adiposity*.15);
+    thighs.forEach((t,index)=>{
+      const attr=t.geometry.attributes.position,base=t.userData.base,center=(index===0?-1:1)*.29;
+      const width=1+v.fat*.10-v.muscle*.08+adiposity*.3;
+      for(let i=0;i<attr.count;i++){attr.array[i*3]=center+(base[i*3]-center)*width;attr.array[i*3+2]=base[i*3+2]*width;}
+      attr.needsUpdate=true;t.geometry.computeVertexNormals();
+    });
     material.color.set(0xb5bfd4).lerp(new THREE.Color(0xc7c4d8),v.skin*.35);
     model.scale.y=profile.height/175;model.scale.x=clampScale(profile.weight,profile.height)*(0.94+profile.muscle/100*.12);
     ghost.scale.copy(model.scale);
+    hips.forEach(h=>{const baseline=ghost.children[model.children.indexOf(h)];baseline.scale.x=.24+adiposity*.15;});
+    thighs.forEach(t=>{
+      const baseline=ghost.children[model.children.indexOf(t)],attr=baseline.geometry.attributes.position,base=t.userData.base;
+      const center=Math.sign(t.geometry.attributes.position.array[0])*.29,width=1+adiposity*.3;
+      for(let i=0;i<attr.count;i++){attr.array[i*3]=center+(base[i*3]-center)*width;attr.array[i*3+2]=base[i*3+2]*width;}
+      attr.needsUpdate=true;baseline.geometry.computeVertexNormals();
+    });
     needsRender=true;
     // Rebuild the ghost torso for this profile, with zero intervention changes.
     ghost.traverse(o=>{if(o.isMesh&&o.geometry!==sphere&&o.geometry.attributes.position?.count===vertices.length/3){
